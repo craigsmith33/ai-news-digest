@@ -1,0 +1,63 @@
+<!--
+  FAQPage JSON-LD for the AI Digest post.
+  HOW TO ADD IN WEBFLOW:
+  Option A (per post): in the Blog template, add an Embed element inside the post body area and paste this whole block.
+  Option B (page-level): paste into the page's custom code (before </body>).
+  Keep the questions/answers in sync with the FAQ section visible on the page.
+-->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I automate a daily news digest with AI?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Connect a scheduled trigger to your email or RSS source, clean the incoming items into a consistent format, pass them to an AI model with a prompt that asks for analysis (not just summary), then format and deliver the result by email or chat. These four steps are the Synthesis Loop: Gather, Structure, Analyze, Deliver."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What does it cost to run an AI news digest?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Pennies a day for a personal digest. The main cost is the AI model call; capping each story to a snippet and using a cheaper model for parsing keeps it low. n8n itself is open-source and can be self-hosted for free."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "n8n vs. Make vs. Zapier for an AI digest — which should I use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Any of them can do it. n8n is the most flexible and self-hostable, which is great for control and data privacy. Make and Zapier are faster to start if you prefer a fully managed tool. The underlying pattern is identical regardless of platform."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use Claude or Gemini instead of GPT-4o?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Swap the model node — the prompts work essentially unchanged across frontier models. Choose based on cost, speed, and the tone of analysis you prefer."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I stop an AI digest from sending duplicate stories?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Filter by date or mark messages as read after each run, so the next run only sees new items. This is the single most common thing people miss on a first build."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can an AI digest work for a whole team or for clients?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Point it at a shared inbox or industry sources, brand the output, and deliver it to a team channel or member list. The same engine that tames a personal inbox can run an organization's daily intelligence."
+      }
+    }
+  ]
+}
+</script>

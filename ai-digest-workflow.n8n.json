@@ -1,0 +1,133 @@
+{
+  "name": "Daily AI News Digest (Convor) — Synthesis Loop",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 9 * * *" }
+          ]
+        }
+      },
+      "id": "node-schedule",
+      "name": "Daily at 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 25,
+        "filters": {
+          "labelIds": ["REPLACE_WITH_YOUR_LABEL_ID"],
+          "readStatus": "unread",
+          "receivedAfter": "={{ $now.minus({ days: 1 }).toISO() }}"
+        },
+        "options": { "downloadAttachments": false }
+      },
+      "id": "node-gmail",
+      "name": "Get AI Emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [460, 300],
+      "credentials": { "gmailOAuth2": { "id": "REPLACE", "name": "Gmail account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// STRUCTURE: clean each email down to the parts that matter.\n// Strips HTML, grabs subject/sender/snippet and a best-effort source URL.\nfunction stripHtml(html = '') {\n  return html\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\nfunction firstRealUrl(html = '') {\n  const m = html.match(/https?:\\/\\/[^\"'\\s>]+/g) || [];\n  // skip common tracking / unsubscribe hosts\n  const skip = /(unsubscribe|list-manage|sendgrid|mailchimp|beehiiv\\.com\\/c\\/|click\\.|track|utm_)/i;\n  const real = m.find(u => !skip.test(u));\n  return real || (m[0] || '');\n}\nconst emails = [];\nfor (const item of $input.all()) {\n  const d = item.json;\n  const body = d.textPlain || stripHtml(d.textHtml || d.snippet || '');\n  emails.push({\n    subject: d.subject || '(no subject)',\n    from: (d.from && d.from.value && d.from.value[0] && d.from.value[0].name) || d.from || 'Unknown',\n    snippet: body.slice(0, 1200), // cap to control token cost\n    mainUrl: firstRealUrl(d.textHtml || '')\n  });\n}\nreturn [{ json: { emails } }];"
+      },
+      "id": "node-process",
+      "name": "Process Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "modelId": "chatgpt-4o-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an AI news analyst creating an insightful digest. Analyze the news, add strategic perspective, and identify key trends. Be concise but insightful."
+            },
+            {
+              "role": "user",
+              "content": "=Analyze these AI news items and create a digest WITH INSIGHTS:\n\n{{ $json.emails.map((email, i) => `Story ${i+1}:\nTitle: ${email.subject}\nSource: ${email.from}\nURL: ${email.mainUrl}\nContent: ${email.snippet}`).join('\\n\\n') }}\n\nFor each story, produce:\n- A 2-3 sentence plain-English summary\n- A \"Why This Matters\" insight: the strategic implication, not a restatement\n\nThen identify the 1-2 biggest trends across all of today's stories.\nReturn clean sections with clear headers."
+            }
+          ]
+        },
+        "options": { "temperature": 0.7 }
+      },
+      "id": "node-openai",
+      "name": "AI Analysis & Insights",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [900, 300],
+      "credentials": { "openAiApi": { "id": "REPLACE", "name": "OpenAI account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// DELIVER (format): wrap the AI analysis in simple branded HTML.\nconst analysis = $json.message?.content || $json.text || $json.content || '';\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:640px;margin:0 auto;\">\n  <h1 style=\"border-bottom:3px solid #4f46e5;padding-bottom:8px;\">🤖 AI Strategic Brief</h1>\n  <p style=\"color:#64748b;\">Analysis &amp; insights on today's AI developments — ${new Date().toLocaleDateString()}</p>\n  <div style=\"white-space:pre-wrap;line-height:1.6;\">${analysis}</div>\n  <hr/>\n  <p style=\"color:#94a3b8;font-size:12px;\">Generated automatically with the Synthesis Loop · convor.ai</p>\n</div>`;\nreturn [{ json: { html, analysis } }];"
+      },
+      "id": "node-format",
+      "name": "Format with Insights",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "subject": "=AI Strategic Brief — {{ $now.toFormat('LLL d') }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "node-sendemail",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1340, 220],
+      "credentials": { "gmailOAuth2": { "id": "REPLACE", "name": "Gmail account" } }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": { "value": "REPLACE_WITH_CHANNEL_ID", "mode": "id" },
+        "text": "=*AI Strategic Brief*\n{{ $json.analysis }}",
+        "otherOptions": {}
+      },
+      "id": "node-slack",
+      "name": "Send to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1340, 380],
+      "credentials": { "slackApi": { "id": "REPLACE", "name": "Slack account" } }
+    }
+  ],
+  "connections": {
+    "Daily at 9am": { "main": [[{ "node": "Get AI Emails", "type": "main", "index": 0 }]] },
+    "Get AI Emails": { "main": [[{ "node": "Process Emails", "type": "main", "index": 0 }]] },
+    "Process Emails": { "main": [[{ "node": "AI Analysis & Insights", "type": "main", "index": 0 }]] },
+    "AI Analysis & Insights": { "main": [[{ "node": "Format with Insights", "type": "main", "index": 0 }]] },
+    "Format with Insights": {
+      "main": [[
+        { "node": "Send Email", "type": "main", "index": 0 },
+        { "node": "Send to Slack", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Free template from Convor (convor.ai). A daily AI news digest built on the Synthesis Loop: Gather -> Structure -> Analyze -> Deliver. Set your Gmail label ID, Slack channel ID, and credentials. The Process Emails and Format nodes are reference implementations — adapt to your sources."
+  }
+}
